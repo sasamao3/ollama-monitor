@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# PyInstaller
+build*/
+dist*/
+*.spec
+.pyinstaller_config/
+
+# OS
+.DS_Store
+
+# Node
+node_modules/
+package-lock.json
+.npm_cache/
+
+# Logs
+*.txt
+*.log
+
+# Other
+.antigravity/
