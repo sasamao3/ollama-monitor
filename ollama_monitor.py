@@ -75,6 +75,26 @@ class OllamaMonitorApp:
                                     fg="#BB86FC", bg="#121212", font=("Helvetica", 18, "bold"))
         self.title_label.pack(side="left")
         
+        # Window Settings Section
+        settings_frame = tk.Frame(header_frame, bg="#121212")
+        settings_frame.pack(side="right", padx=(0, 20))
+        
+        self.topmost_var = tk.BooleanVar(value=False)
+        self.topmost_check = tk.Checkbutton(
+            settings_frame, text="Always on Top", variable=self.topmost_var,
+            command=self.toggle_topmost, bg="#121212", fg="#BB86FC", 
+            selectcolor="#333333"
+        )
+        self.topmost_check.pack(side="top", anchor="e")
+
+        self.alpha_var = tk.DoubleVar(value=1.0)
+        self.alpha_scale = tk.Scale(
+            settings_frame, from_=0.2, to=1.0, resolution=0.05, orient="horizontal",
+            variable=self.alpha_var, command=self.set_alpha,
+            bg="#121212", fg="#03DAC6", highlightthickness=0, length=100, showvalue=0
+        )
+        self.alpha_scale.pack(side="top", anchor="e")
+
         # GPU Meter Section (Right of Title)
         gpu_frame = tk.Frame(header_frame, bg="#121212")
         gpu_frame.pack(side="right")
@@ -123,6 +143,12 @@ class OllamaMonitorApp:
         self.status_bar = tk.Label(self.root, text="System: Ready", 
                                    fg="#888888", bg="#121212", font=("Helvetica", 10))
         self.status_bar.pack(side="bottom", fill="x", padx=30, pady=20)
+
+    def toggle_topmost(self):
+        self.root.attributes("-topmost", self.topmost_var.get())
+
+    def set_alpha(self, value):
+        self.root.attributes("-alpha", float(value))
 
     def get_gpu_usage(self):
         try:
