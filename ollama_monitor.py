@@ -7,10 +7,11 @@ import time
 import sys
 import os
 import traceback
+import subprocess
+import re
 from datetime import datetime
 
 # --- STABLE LOGGING TO /tmp/ ---
-# /tmp/ is always writable on macOS even inside a restricted terminal/sandbox
 class Logger:
     def __init__(self, filename="ollama_monitor_log.txt"):
         self.terminal = sys.stdout
@@ -18,7 +19,6 @@ class Logger:
         try:
             self.log = open(self.log_path, "a", encoding="utf-8")
             self.log.write(f"\n--- App Started: {datetime.now()} ---\n")
-            # Always print to terminal too
             self.terminal.write(f"Logging to {self.log_path}\n")
         except:
             pass
@@ -42,8 +42,8 @@ if getattr(sys, 'frozen', False):
 class OllamaMonitorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Ollama Monitor (Stable)")
-        self.root.geometry("900x650")
+        self.root.title("Ollama Monitor + GPU")
+        self.root.geometry("900x700")
         self.root.configure(bg="#121212")
 
         # Configuration
@@ -56,7 +56,6 @@ class OllamaMonitorApp:
 
         try:
             self.create_widgets()
-            # Explicitly force update to ensure painter works
             self.root.update_idletasks()
             self.root.update()
         except Exception as e:
@@ -64,7 +63,7 @@ class OllamaMonitorApp:
             traceback.print_exc()
 
     def create_widgets(self):
-        # Header using standard tk.Frame (no ttk)
+        # Header
         header_frame = tk.Frame(self.root, bg="#121212")
         header_frame.pack(fill="x", padx=30, pady=(30, 10))
         
@@ -72,13 +71,24 @@ class OllamaMonitorApp:
                                     fg="#BB86FC", bg="#121212", font=("Helvetica", 18, "bold"))
         self.title_label.pack(side="left")
         
-        self.time_label = tk.Label(header_frame, text="Initializing...", 
-                                   fg="#888888", bg="#121212", font=("Helvetica", 10))
-        self.time_label.pack(side="right", pady=10)
+        # GPU Meter Section (Right of Title)
+        gpu_frame = tk.Frame(header_frame, bg="#121212")
+        gpu_frame.pack(side="right")
+
+        self.gpu_label = tk.Label(gpu_frame, text="GPU: 0%", fg="#03DAC6", bg="#121212", font=("Helvetica", 10, "bold"))
+        self.gpu_label.pack(side="top", anchor="e")
+
+        self.gpu_canvas = tk.Canvas(gpu_frame, width=150, height=8, bg="#333333", highlightthickness=0)
+        self.gpu_canvas.pack(side="top", pady=2)
+        self.gpu_bar = self.gpu_canvas.create_rectangle(0, 0, 0, 8, fill="#03DAC6", outline="")
+
+        self.time_label = tk.Label(self.root, text="Initializing...", 
+                                   fg="#888888", bg="#121212", font=("Helvetica", 9))
+        self.time_label.place(x=30, y=70) # Fixed position for sync time
 
         # Main Container
         main_container = tk.Frame(self.root, bg="#121212")
-        main_container.pack(fill="both", expand=True, padx=30, pady=10)
+        main_container.pack(fill="both", expand=True, padx=30, pady=(20, 10))
 
         # Left Panel
         left_panel = tk.Frame(main_container, bg="#121212")
@@ -97,7 +107,7 @@ class OllamaMonitorApp:
         right_panel = tk.Frame(main_container, bg="#121212")
         right_panel.pack(side="right", fill="both", expand=True, padx=(15, 0))
         
-        tk.Label(right_panel, text="GEMMA 4 INSIGHTS", fg="#03DAC6", bg="#121212", 
+        tk.Label(right_panel, text="AI INSIGHTS", fg="#03DAC6", bg="#121212", 
                  font=("Helvetica", 12, "bold")).pack(anchor="w", pady=(0, 10))
         
         self.ai_output = scrolledtext.ScrolledText(
@@ -105,11 +115,24 @@ class OllamaMonitorApp:
             font=("Helvetica", 12, "italic"), borderwidth=0, highlightthickness=1, highlightbackground="#333333", wrap="word"
         )
         self.ai_output.pack(fill="both", expand=True)
-        self.ai_output.insert("1.0", "Waiting for AI analysis...")
 
         self.status_bar = tk.Label(self.root, text="System: Ready", 
                                    fg="#888888", bg="#121212", font=("Helvetica", 10))
         self.status_bar.pack(side="bottom", fill="x", padx=30, pady=20)
+
+    def get_gpu_usage(self):
+        try:
+            # Use ioreg to get Apple Silicon GPU utilization
+            cmd = "ioreg -rw0 -c IOAccelerator | grep -i PerformanceStatistics"
+            output = subprocess.check_output(cmd, shell=True).decode()
+            
+            # Find "Device Utilization %" = 20
+            match = re.search(r'"Device Utilization %"=(\d+)', output)
+            if match:
+                return int(match.group(1))
+            return 0
+        except:
+            return 0
 
     def get_ps_data(self):
         try:
@@ -132,14 +155,14 @@ class OllamaMonitorApp:
 
     def get_ai_insight(self, ps_text):
         try:
-            prompt = f"Summarize status: {ps_text}"
+            prompt = f"Summarize current running AI status: {ps_text}"
             payload = json.dumps({"model": self.model_name, "prompt": prompt, "stream": False}).encode('utf-8')
             req = urllib.request.Request(f"{self.api_base}/generate", data=payload, headers={'Content-Type': 'application/json'})
             with urllib.request.urlopen(req, timeout=15) as response:
                 result = json.loads(response.read().decode())
                 return result.get("response", "").strip()
         except:
-            return "Ollama offline."
+            return "Ollama offline or model missing."
 
     def update_loop(self):
         while self.running:
@@ -148,9 +171,15 @@ class OllamaMonitorApp:
                 now = datetime.now().strftime("%H:%M:%S")
                 self.root.after(0, lambda t=now: self.time_label.config(text=f"Last Sync: {t}"))
 
+                # Update GPU Meter
+                gpu_load = self.get_gpu_usage()
+                self.root.after(0, self.refresh_gpu, gpu_load)
+
+                # Update Process List
                 ps_text = self.get_ps_data()
                 self.root.after(0, self.refresh_ps, ps_text)
 
+                # Update AI Insight (less frequent)
                 current_time = time.time() * 1000
                 if current_time - self.last_ai_time > self.ai_interval:
                     insight = self.get_ai_insight(ps_text)
@@ -161,6 +190,22 @@ class OllamaMonitorApp:
             except Exception as e:
                 print(f"Loop error: {e}")
                 time.sleep(2)
+
+    def refresh_gpu(self, load):
+        if not self.root.winfo_exists(): return
+        
+        # Update Text
+        self.gpu_label.config(text=f"GPU: {load}%")
+        
+        # Update Bar Width
+        width = (load / 100.0) * 150
+        self.gpu_canvas.coords(self.gpu_bar, 0, 0, width, 8)
+        
+        # Update Bar Color (Green -> Yellow -> Red)
+        if load < 30: color = "#03DAC6" # Teal
+        elif load < 70: color = "#FFB300" # Amber
+        else: color = "#CF6679" # Pinkish Red
+        self.gpu_canvas.itemconfig(self.gpu_bar, fill=color)
 
     def refresh_ps(self, text):
         if self.root.winfo_exists():
