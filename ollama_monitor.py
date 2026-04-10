@@ -46,7 +46,8 @@ class OllamaMonitorApp:
         
         # Persistence: Default geometry or load from config
         self.config_path = os.path.expanduser("~/.ollama_monitor_config.json")
-        self.load_window_geometry()
+        self.initial_config = self.load_config()
+        self.root.geometry(self.initial_config.get("geometry", "900x700"))
         
         self.root.configure(bg="#121212")
 
@@ -60,6 +61,13 @@ class OllamaMonitorApp:
 
         try:
             self.create_widgets()
+            
+            # Apply initial settings to widgets
+            self.topmost_var.set(self.initial_config.get("topmost", False))
+            self.alpha_var.set(self.initial_config.get("alpha", 1.0))
+            self.toggle_topmost()
+            self.set_alpha(self.alpha_var.get())
+
             self.root.update_idletasks()
             self.root.update()
         except Exception as e:
@@ -247,28 +255,29 @@ class OllamaMonitorApp:
             self.ai_output.delete("1.0", tk.END)
             self.ai_output.insert(tk.END, f"SYSTEM ANALYSIS:\n\n\"{text}\"")
 
-    def load_window_geometry(self):
+    def load_config(self):
         try:
             if os.path.exists(self.config_path):
                 with open(self.config_path, "r") as f:
-                    config = json.load(f)
-                    geometry = config.get("geometry", "900x700")
-                    self.root.geometry(geometry)
-            else:
-                self.root.geometry("900x700")
+                    return json.load(f)
         except:
-            self.root.geometry("900x700")
+            pass
+        return {}
 
-    def save_window_geometry(self):
+    def save_config(self):
         try:
             self.root.update_idletasks() # Ensure geometry is current
             current_geometry = self.root.geometry()
-            config = {"geometry": current_geometry}
+            config = {
+                "geometry": current_geometry,
+                "topmost": self.topmost_var.get(),
+                "alpha": self.alpha_var.get()
+            }
             with open(self.config_path, "w") as f:
                 json.dump(config, f)
-            print(f"Window geometry saved: {current_geometry}")
+            print(f"Config saved: {config}")
         except Exception as e:
-            print(f"Failed to save geometry: {e}")
+            print(f"Failed to save config: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -276,7 +285,7 @@ if __name__ == "__main__":
     
     def on_closing():
         print("Closing application...")
-        app.save_window_geometry()
+        app.save_config()
         app.running = False
         root.destroy()
         
