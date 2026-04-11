@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import scrolledtext
 import urllib.request
 import json
@@ -126,8 +127,17 @@ class OllamaMonitorApp:
         left_panel = tk.Frame(main_container, bg="#121212")
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 15))
         
-        tk.Label(left_panel, text="LIVE MODELS", fg="#03DAC6", bg="#121212", 
-                 font=("Helvetica", 12, "bold")).pack(anchor="w", pady=(0, 10))
+        models_header_frame = tk.Frame(left_panel, bg="#121212")
+        models_header_frame.pack(fill="x", pady=(0, 10))
+        
+        tk.Label(models_header_frame, text="LIVE MODELS", fg="#03DAC6", bg="#121212", 
+                 font=("Helvetica", 12, "bold")).pack(side="left")
+        
+        self.model_combo = ttk.Combobox(models_header_frame, state="readonly", width=15)
+        self.model_combo.pack(side="left", padx=(10, 5))
+        
+        self.stop_btn = tk.Button(models_header_frame, text="Stop", command=self.stop_model, highlightbackground="#121212")
+        self.stop_btn.pack(side="left")
         
         self.ps_output = scrolledtext.ScrolledText(
             left_panel, bg="#1A1A1A", fg="#E0E0E0", insertbackground="white",
@@ -178,6 +188,8 @@ class OllamaMonitorApp:
             with urllib.request.urlopen(req, timeout=2) as response:
                 data = json.loads(response.read().decode())
                 models = data.get("models", [])
+                self.running_model_names = [m.get('name') for m in models if m.get('name')]
+                
                 if not models: return "No models currently running."
                 
                 output = f"{'NAME':<25} {'ID':<15} {'SIZE':<10} {'STATUS':<15}\n"
@@ -189,6 +201,7 @@ class OllamaMonitorApp:
                     output += f"{name:<25} {mid:<15} {size:<10} Running\n"
                 return output
         except Exception as e:
+            self.running_model_names = []
             return f"Error: {e}"
 
     def get_ai_insight(self, ps_text):
@@ -249,11 +262,40 @@ class OllamaMonitorApp:
         if self.root.winfo_exists():
             self.ps_output.delete("1.0", tk.END)
             self.ps_output.insert(tk.END, text)
+            
+            if hasattr(self, 'running_model_names'):
+                current_values = list(self.model_combo['values'])
+                if current_values != self.running_model_names:
+                    self.model_combo['values'] = self.running_model_names
+                    if self.running_model_names and self.model_combo.get() not in self.running_model_names:
+                        self.model_combo.set(self.running_model_names[0])
+                    elif not self.running_model_names:
+                        self.model_combo.set("")
 
     def refresh_ai(self, text):
         if self.root.winfo_exists():
             self.ai_output.delete("1.0", tk.END)
             self.ai_output.insert(tk.END, f"SYSTEM ANALYSIS:\n\n\"{text}\"")
+
+    def stop_model(self):
+        model_to_stop = self.model_combo.get()
+        if not model_to_stop:
+            return
+            
+        def _stop():
+            try:
+                payload = json.dumps({"model": model_to_stop, "keep_alive": 0}).encode('utf-8')
+                req = urllib.request.Request(f"{self.api_base}/generate", data=payload, headers={'Content-Type': 'application/json'})
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    pass
+                print(f"Stopped model {model_to_stop}")
+                # Refresh ps right away
+                ps_text = self.get_ps_data()
+                self.root.after(0, self.refresh_ps, ps_text)
+            except Exception as e:
+                print(f"Failed to stop model: {e}")
+
+        threading.Thread(target=_stop, daemon=True).start()
 
     def load_config(self):
         try:
