@@ -212,7 +212,7 @@ class OllamaMonitorApp:
             }).encode('utf-8')
             
             req = urllib.request.Request(f"{self.api_base}/generate", data=payload, headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req, timeout=3) as response:  # Reduced timeout
+            with urllib.request.urlopen(req, timeout=10) as response:  # Increased timeout for busy models
                 result = json.loads(response.read().decode())
                 
                 # Extract token information from the response
@@ -227,7 +227,7 @@ class OllamaMonitorApp:
                 else:
                     return 0.0
         except Exception as e:
-            print(f"Error getting token info for {model_name}: {e}")
+            # Silently return 0 on timeout to avoid console spam
             return 0.0
 
     def get_token_throughput(self):
@@ -319,7 +319,7 @@ class OllamaMonitorApp:
 
                 # Update Token Display (less frequently to avoid blocking GPU updates)
                 current_time = time.time()
-                if current_time - self.last_token_update > 5:  # Update token every 5 seconds instead of every second
+                if current_time - self.last_token_update > 10:  # Update token every 10 seconds instead of 5
                     threading.Thread(target=self.refresh_tokens_async, daemon=True).start()
                     self.last_token_update = current_time
 
