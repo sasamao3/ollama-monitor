@@ -10,6 +10,8 @@ Ollama Monitor is a macOS desktop application designed to provide real-time moni
   Visually tracks your Apple Silicon GPU utilization with a progress bar and percentage value, retrieved via the `ioreg` command.
 - **AI Insights**
   Automatically sends the current system status (e.g., list of running models) to an AI model (default: `gemma4:latest`) and displays an AI-generated summary of your environment.
+- **Tokens Per Second Display**
+  Shows token throughput information for running models (currently shows N/A as actual tracking requires additional implementation).
 - **Customizable Window**
   - **Always on Top**: A toggle to pin the monitor window above other applications.
   - **Transparency**: An adjustable slider to set the window's alpha (transparency) level.
