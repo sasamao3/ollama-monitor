@@ -176,6 +176,7 @@ class OllamaMonitorApp:
         self.token_timestamps = {}  # model_name -> last update timestamp
         self.total_tokens = 0
         self.last_token_time = time.time()
+        self.last_token_update = 0  # Track last token update time
 
     def toggle_topmost(self):
         self.root.attributes("-topmost", self.topmost_var.get())
@@ -211,7 +212,7 @@ class OllamaMonitorApp:
             }).encode('utf-8')
             
             req = urllib.request.Request(f"{self.api_base}/generate", data=payload, headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=3) as response:  # Reduced timeout
                 result = json.loads(response.read().decode())
                 
                 # Extract token information from the response
@@ -233,7 +234,7 @@ class OllamaMonitorApp:
         """Calculate average token throughput from running models"""
         try:
             req = urllib.request.Request(f"{self.api_base}/ps")
-            with urllib.request.urlopen(req, timeout=2) as response:
+            with urllib.request.urlopen(req, timeout=1) as response:  # Reduced timeout
                 data = json.loads(response.read().decode())
                 models = data.get("models", [])
                 
@@ -316,8 +317,11 @@ class OllamaMonitorApp:
                 ps_text = self.get_ps_data()
                 self.root.after(0, self.refresh_ps, ps_text)
 
-                # Update Token Display
-                self.root.after(0, self.refresh_tokens)
+                # Update Token Display (less frequently to avoid blocking GPU updates)
+                current_time = time.time()
+                if current_time - self.last_token_update > 5:  # Update token every 5 seconds instead of every second
+                    threading.Thread(target=self.refresh_tokens_async, daemon=True).start()
+                    self.last_token_update = current_time
 
                 # Update AI Insight (less frequent)
                 current_time = time.time() * 1000
@@ -378,6 +382,15 @@ class OllamaMonitorApp:
         except Exception as e:
             print(f"Error refreshing tokens: {e}")
             self.tokens_label.config(text="tok/s: 0.0")
+
+    def refresh_tokens_async(self):
+        """Async version that runs in a separate thread to avoid blocking GPU updates"""
+        try:
+            throughput = self.get_token_throughput()
+            if self.root.winfo_exists():
+                self.root.after(0, lambda: self.tokens_label.config(text=f"tok/s: {throughput:.1f}"))
+        except Exception as e:
+            print(f"Error in async token refresh: {e}")
 
     def stop_model(self):
         model_to_stop = self.model_combo.get()
