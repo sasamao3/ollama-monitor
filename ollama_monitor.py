@@ -115,18 +115,9 @@ class OllamaMonitorApp:
         self.gpu_canvas.pack(side="top", pady=2)
         self.gpu_bar = self.gpu_canvas.create_rectangle(0, 0, 0, 8, fill="#03DAC6", outline="")
 
-        # Add tokens per second display
-        self.tokens_label = tk.Label(gpu_frame, text="tok/s: 0.0", fg="#03DAC6", bg="#121212", font=("Helvetica", 10, "bold"))
-        self.tokens_label.pack(side="top", anchor="e")
-
         self.time_label = tk.Label(self.root, text="Initializing...", 
                                    fg="#888888", bg="#121212", font=("Helvetica", 9))
         self.time_label.place(x=30, y=70) # Fixed position for sync time
-
-        # Token tracking
-        self.token_counts = {}  # model_name -> token count
-        self.token_timestamps = {}  # model_name -> last update timestamp
-        self.token_throughput = {}  # model_name -> tokens per second
 
         # Main Container
         main_container = tk.Frame(self.root, bg="#121212")
@@ -171,13 +162,6 @@ class OllamaMonitorApp:
                                    fg="#888888", bg="#121212", font=("Helvetica", 10))
         self.status_bar.pack(side="bottom", fill="x", padx=30, pady=20)
 
-        # Token tracking
-        self.token_counts = {}  # model_name -> token count
-        self.token_timestamps = {}  # model_name -> last update timestamp
-        self.total_tokens = 0
-        self.last_token_time = time.time()
-        self.last_token_update = 0  # Track last token update time
-
     def toggle_topmost(self):
         self.root.attributes("-topmost", self.topmost_var.get())
 
@@ -198,76 +182,9 @@ class OllamaMonitorApp:
         except:
             return 0
 
-    def get_model_token_info(self, model_name):
-        """Get token information for a specific model by making a test generate request"""
-        try:
-            # Make a lightweight test request to get token info
-            payload = json.dumps({
-                "model": model_name,
-                "prompt": ".",
-                "stream": False,
-                "options": {
-                    "temperature": 0
-                }
-            }).encode('utf-8')
-            
-            req = urllib.request.Request(f"{self.api_base}/generate", data=payload, headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req, timeout=10) as response:  # Increased timeout for busy models
-                result = json.loads(response.read().decode())
-                
-                # Extract token information from the response
-                prompt_eval_count = result.get("prompt_eval_count", 0)
-                eval_count = result.get("eval_count", 0)
-                total_duration = result.get("total_duration", 0)
-                
-                # Calculate tokens per second
-                if total_duration > 0:
-                    tok_per_sec = eval_count / (total_duration / 1e9)
-                    return tok_per_sec
-                else:
-                    return 0.0
-        except Exception as e:
-            # Silently return 0 on timeout to avoid console spam
-            return 0.0
 
-    def get_token_throughput(self):
-        """Calculate average token throughput from running models"""
-        try:
-            req = urllib.request.Request(f"{self.api_base}/ps")
-            with urllib.request.urlopen(req, timeout=1) as response:  # Reduced timeout
-                data = json.loads(response.read().decode())
-                models = data.get("models", [])
-                
-                if not models:
-                    return 0.0
-                
-                # Calculate average token throughput from all running models
-                total_throughput = 0.0
-                count = 0
-                
-                for model in models:
-                    model_name = model.get('name', '')
-                    if model_name:
-                        tok_per_sec = self.get_model_token_info(model_name)
-                        if tok_per_sec > 0:
-                            total_throughput += tok_per_sec
-                            count += 1
-                
-                if count > 0:
-                    return total_throughput / count
-                else:
-                    return 0.0
-        except Exception as e:
-            print(f"Error getting token throughput: {e}")
-            return 0.0
-        """Update token throughput display"""
-        if not self.root.winfo_exists():
-            return
-            
-        # Simple placeholder that shows the token display is functional
-        # Actual token tracking would require monitoring generation requests
-        # which would be disruptive to the user's workflow
-        self.tokens_label.config(text="tok/s: 0.0")
+
+
 
     def get_ps_data(self):
         try:
@@ -317,18 +234,8 @@ class OllamaMonitorApp:
                 ps_text = self.get_ps_data()
                 self.root.after(0, self.refresh_ps, ps_text)
 
-                # Update Token Display (less frequently to avoid blocking GPU updates)
-                current_time = time.time()
-                if current_time - self.last_token_update > 10:  # Update token every 10 seconds instead of 5
-                    threading.Thread(target=self.refresh_tokens_async, daemon=True).start()
-                    self.last_token_update = current_time
-
-                # Update AI Insight (less frequent)
-                current_time = time.time() * 1000
-                if current_time - self.last_ai_time > self.ai_interval:
-                    insight = self.get_ai_insight(ps_text)
-                    self.root.after(0, self.refresh_ai, insight)
-                    self.last_ai_time = current_time
+                # Note: AI Insight auto-update disabled to prevent unwanted model loading
+                # Users can manually trigger AI insights if needed
 
                 time.sleep(self.update_interval / 1000)
             except Exception as e:
@@ -369,28 +276,6 @@ class OllamaMonitorApp:
         if self.root.winfo_exists():
             self.ai_output.delete("1.0", tk.END)
             self.ai_output.insert(tk.END, f"SYSTEM ANALYSIS:\n\n\"{text}\"")
-
-    def refresh_tokens(self):
-        """Update token throughput display with actual values from models"""
-        if not self.root.winfo_exists():
-            return
-        
-        try:
-            # Get actual token throughput from running models
-            throughput = self.get_token_throughput()
-            self.tokens_label.config(text=f"tok/s: {throughput:.1f}")
-        except Exception as e:
-            print(f"Error refreshing tokens: {e}")
-            self.tokens_label.config(text="tok/s: 0.0")
-
-    def refresh_tokens_async(self):
-        """Async version that runs in a separate thread to avoid blocking GPU updates"""
-        try:
-            throughput = self.get_token_throughput()
-            if self.root.winfo_exists():
-                self.root.after(0, lambda: self.tokens_label.config(text=f"tok/s: {throughput:.1f}"))
-        except Exception as e:
-            print(f"Error in async token refresh: {e}")
 
     def stop_model(self):
         model_to_stop = self.model_combo.get()
