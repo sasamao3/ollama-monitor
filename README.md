@@ -1,66 +1,44 @@
 # Ollama Monitor + GPU
 
-Ollama Monitor is a macOS desktop application designed to provide real-time monitoring of your locally running [Ollama](https://ollama.com/) models and Apple Silicon GPU utilization. Additionally, it leverages an Ollama AI model itself to periodically generate and display insights summarizing the current state of your running models.
+A native macOS app for monitoring models loaded in Ollama and LM Studio, plus Apple Silicon GPU utilization.
 
-## ✨ Features
+## Features
 
-- **Live Models Monitoring**
-  Displays real-time information about actively running/loaded Ollama models, including their names, IDs, sizes, and operational status.
-- **GPU Meter**
-  Visually tracks your Apple Silicon GPU utilization with a progress bar and percentage value, retrieved via the `ioreg` command.
-- **AI Insights**
-  Automatically sends the current system status (e.g., list of running models) to an AI model (default: `gemma4:latest`) and displays an AI-generated summary of your environment.
-- **Tokens Per Second Display**
-  Shows token throughput information for running models (currently shows N/A as actual tracking requires additional implementation).
-- **Customizable Window**
-  - **Always on Top**: A toggle to pin the monitor window above other applications.
-  - **Transparency**: An adjustable slider to set the window's alpha (transparency) level.
-- **Persistent State**
-  Automatically saves your window layout preferences (geometry, 'Always on Top' status, and transparency) to `~/.ollama_monitor_config.json` and restores them on your next launch.
+- Lists loaded Ollama and LM Studio models with model name, identifier, size, and type.
+- Reads GPU utilization and Apple GPU-driver memory counters from `ioreg` on Apple Silicon Macs.
+- Sends an unload request for a selected Ollama model.
+- Stops a selected Bionic model by unloading it from memory.
+- Supports an always-on-top window and adjustable window opacity.
+- Reads the existing `~/.ollama_monitor_config.json` settings and restores the saved window geometry.
 
-## 💻 Requirements
+## Requirements
 
-- **OS**: macOS (Apple Silicon highly recommended, as the application uses `ioreg` to fetch GPU data).
-- **Environment**: Python 3.x
-- **Dependencies**: [Ollama](https://ollama.com) must be installed and running in the background (`http://localhost:11434`).
-- **Models**: You need an active model for the AI Insights feature. The default is `gemma4:latest`, but this can be changed in the source code via `self.model_name`.
+- macOS 26 or later
+- Xcode 27 or the matching Command Line Tools with Swift 6.4 or later
+- Ollama running locally at `http://localhost:11434`
+- Bionic's Local Model API server enabled in `Settings → Local Model API`
 
-## 🚀 Installation & Usage
+## Build
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/yourusername/ollama-monitor.git
-cd ollama-monitor
-
-# 2. Run the application
-python3 ollama_monitor.py
+./scripts/build_app.sh
+open dist/OllamaMonitor.app
 ```
 
-*Note: The script relies strictly on Python standard libraries (`tkinter`, `urllib`, `json`, `threading`, `subprocess`, etc.), so no additional `pip install` commands are typically required.*
+The script builds a native SwiftUI executable and places it in `dist/OllamaMonitor.app`. You can also open `Package.swift` in Xcode to edit and run the app.
 
-## 📦 Packaging (Creating a macOS .app)
+## Configuration
 
-You can bundle this script into a standalone macOS `.app` using [PyInstaller](https://pyinstaller.org/) and the provided `OllamaMonitor.spec` file.
+The app keeps the existing `~/.ollama_monitor_config.json` location for the always-on-top and opacity preferences. It imports the previous Tk window geometry on first launch; subsequent window placement is saved by macOS under the app's native window autosave name.
 
-```bash
-# Install PyInstaller
-pip install pyinstaller
+Ollama and Bionic are queried once per second. Bionic models are filtered to loaded instances from the LM Studio runtime's [`GET /api/v1/models`](https://lmstudio.ai/docs/developer/rest/list) endpoint. The app reads the configured port from `lms server status`; if the CLI is unavailable, it checks ports `1234` and `8000`. Turn on Bionic's Local Model API in `Settings → Local Model API` for model monitoring.
 
-# Build the application
-pyinstaller OllamaMonitor.spec
-```
-Once the build is complete, you will find `OllamaMonitor.app` inside the `dist/` directory.
+The GPU memory meter shows `In use system memory` relative to `Alloc system memory` from `IOAccelerator`. On Apple silicon this is shared system memory, not dedicated VRAM.
 
-## ⚙️ Configuration & Customization
+## Legacy Python app
 
-Feel free to tweak the following variables located in `ollama_monitor.py` to match your preferences:
+`ollama_monitor.py` and `setup.py` are retained as the previous Tkinter implementation. The native app is built from `Sources/OllamaMonitor`.
 
-- `self.model_name = "gemma4:latest"` : The model used for AI Insights generation.
-- `self.update_interval = 1000` : The UI update frequency in milliseconds.
-- `self.ai_interval = 15000` : The frequency of generating new AI Insights in milliseconds.
+## License
 
-## 📄 Logs
-For debugging and troubleshooting purposes, run logs are automatically saved to `/tmp/ollama_monitor_log.txt`.
-
-## 📝 License
-This project is licensed under the MIT License.
+MIT

@@ -11,6 +11,10 @@ dist*/
 *.spec
 .pyinstaller_config/
 
+# Swift Package Manager
+.build/
+.swiftpm/
+
 # OS
 .DS_Store
 
