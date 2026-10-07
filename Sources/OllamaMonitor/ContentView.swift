@@ -8,7 +8,7 @@ struct ContentView: View {
     private let purple = Color(red: 0.73, green: 0.53, blue: 0.97)
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 14) {
             header
 
             HStack(alignment: .top, spacing: 18) {
@@ -19,7 +19,8 @@ struct ContentView: View {
 
             footer
         }
-        .padding(24)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
         .background(Color(nsColor: .windowBackgroundColor))
         .preferredColorScheme(.dark)
     }
@@ -162,7 +163,8 @@ struct ContentView: View {
                 .tableStyle(.inset(alternatesRowBackgrounds: true))
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(panelBackground)
     }
@@ -243,7 +245,8 @@ struct ContentView: View {
                 .tableStyle(.inset(alternatesRowBackgrounds: true))
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(panelBackground)
     }

@@ -9,7 +9,7 @@ struct OllamaMonitorApp: App {
     var body: some Scene {
         WindowGroup("Ollama Monitor + GPU") {
             ContentView(monitor: monitor, preferences: preferences)
-                .frame(minWidth: 820, minHeight: 520)
+                .frame(minWidth: 820, minHeight: 360)
                 .background(WindowConfigurator(preferences: preferences).frame(width: 0, height: 0))
                 .task {
                     monitor.start()

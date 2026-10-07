@@ -95,7 +95,7 @@ final class AppPreferences: ObservableObject {
         let x = integer(capture: 3, from: geometry, match: match) ?? 80
         let yFromTop = integer(capture: 4, from: geometry, match: match) ?? 80
         let visibleFrame = screen.visibleFrame
-        let size = NSSize(width: max(width, 760), height: max(height, 520))
+        let size = NSSize(width: max(width, 760), height: max(height, 360))
         var frame = NSRect(
             x: visibleFrame.minX + CGFloat(x),
             y: screen.frame.maxY - CGFloat(yFromTop) - size.height,
